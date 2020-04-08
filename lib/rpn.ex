@@ -43,8 +43,9 @@ defmodule Rpn do
 
   """
   def parse(seq) do
-    tokens = String.split(seq, " ")
-    Enum.map(tokens, fn t ->
+    seq
+    |> String.split(" ")
+    |> Enum.map(fn t ->
       if t =~ ~r/[0-9]+/ do
         String.to_integer(t)
       else
@@ -52,6 +53,39 @@ defmodule Rpn do
       end
     end)
   end
+
+  defmacro is_operator(token) do
+    quote do 
+      unquote(token) == "+" or unquote(token) == "-" or unquote(token) == "*" or unquote(token) == "/"
+    end
+  end
+
+  @doc """
+  Converts strings to operators if valid, otherwise, raises Invalid operator.
+
+  ## Examples
+
+      iex> Rpn.operator("+")
+      &+/2
+
+      iex> Rpn.operator("-")
+      &-/2
+
+      iex> Rpn.operator("*")
+      &*/2
+
+      iex> Rpn.operator("/")
+      &div/2
+
+      iex> Rpn.operator("?")
+      ** (RuntimeError) Invalid operator ?
+
+  """
+  def operator("+"), do: &+/2
+  def operator("-"), do: &-/2
+  def operator("*"), do: &*/2
+  def operator("/"), do: &div/2
+  def operator(token), do: raise "Invalid operator #{token}"
 
   @doc """
   Takes a stack and a new token, and returns new stack.
@@ -74,30 +108,14 @@ defmodule Rpn do
       [3]
 
   """
-  def handle_token("+", stack) when length(stack) < 2, do: raise "Invalid sequence"
-  def handle_token("+", stack) when length(stack) >= 2 do
-    [right, left] = Enum.take(stack, -2)
-    result = right + left
-    Enum.drop(stack, -2) ++ [result]
-  end
-  def handle_token("-", stack) when length(stack) < 2, do: raise "Invalid sequence"
-  def handle_token("-", stack) when length(stack) >= 2 do
-    [right, left] = Enum.take(stack, -2)
-    result = right - left
-    Enum.drop(stack, -2) ++ [result]
-  end
-  def handle_token("*", stack) when length(stack) < 2, do: raise "Invalid sequence"
-  def handle_token("*", stack) when length(stack) >= 2 do
-    [right, left] = Enum.take(stack, -2)
-    result = right * left
-    Enum.drop(stack, -2) ++ [result]
-  end
-  def handle_token("/", stack) when length(stack) < 2, do: raise "Invalid sequence"
-  def handle_token("/", stack) when length(stack) >= 2 do
-    [right, left] = Enum.take(stack, -2)
-    result = div(right, left)
-    Enum.drop(stack, -2) ++ [result]
-  end
+  def handle_token(token, stack) when length(stack) < 2 and is_operator(token), do: raise "Invalid sequence"
+  def handle_token(token, stack) when is_operator(token), do: do_handle_token(stack, operator(token))
   def handle_token(token, []), do: [token]
   def handle_token(token, stack), do: stack ++ [token]
+
+  defp do_handle_token(stack, operator) do
+    [right, left] = Enum.take(stack, -2)
+    result = operator.(right, left)
+    Enum.drop(stack, -2) ++ [result]
+  end
 end
